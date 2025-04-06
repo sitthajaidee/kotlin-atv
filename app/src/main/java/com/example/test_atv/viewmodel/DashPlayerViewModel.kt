@@ -3,6 +3,7 @@ package com.example.test_atv.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -47,19 +48,24 @@ class DashPlayerViewModel : ViewModel() {
     }
 
     fun initializePlayer(context: Context, dashUrl: String) {
+        Log.d("DashPlayerViewModel", "Initializing player with URL: $dashUrl")
         // สร้าง ExoPlayer instance
         val newPlayer = ExoPlayer.Builder(context).build()
         player = newPlayer
 
         // สร้าง MediaSource สำหรับ DASH streaming
         val mediaSource = createDashMediaSource(dashUrl)
+        Log.d("DashPlayerViewModel", "MediaSource created")
 
         // กำหนด MediaSource ให้กับ player
         newPlayer.setMediaSource(mediaSource)
+        Log.d("DashPlayerViewModel", "MediaSource set to player")
 
         // เตรียม player และเริ่มเล่น
         newPlayer.prepare()
+        Log.d("DashPlayerViewModel", "Player prepared")
         newPlayer.playWhenReady = true
+        Log.d("DashPlayerViewModel", "PlayWhenReady set to true")
     }
     @UnstableApi
     fun getPlayer(): ExoPlayer? {
@@ -68,6 +74,7 @@ class DashPlayerViewModel : ViewModel() {
 
     @UnstableApi
     private fun createDashMediaSource(dashUrl: String): MediaSource {
+        Log.d("DashPlayerViewModel", "Creating DASH MediaSource for URL: $dashUrl")
         // สร้าง OkHttpDataSource.Factory ที่ใช้ OkHttpClient ที่เราตั้งค่าไว้
         val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
 
@@ -75,6 +82,7 @@ class DashPlayerViewModel : ViewModel() {
         val mediaItem = MediaItem.Builder()
             .setUri(dashUrl)
             .build()
+        Log.d("DashPlayerViewModel", "MediaItem created")
 
         // สร้างและส่งคืน DashMediaSource
         return DashMediaSource.Factory(dataSourceFactory)
