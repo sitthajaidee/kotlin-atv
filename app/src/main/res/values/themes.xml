@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.Test_atv" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

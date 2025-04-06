@@ -1,0 +1,709 @@
+=========================== app/src/main/res/values/themes.xml ===========================
+<resources>
+
+    <style name="Theme.Test_atv" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>
+
+
+=========================== app/src/main/res/values/strings.xml ===========================
+<resources>
+    <string name="app_name">test_atv</string>
+</resources>
+
+
+=========================== app/src/main/AndroidManifest.xml ===========================
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:banner="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Test_atv">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
+
+
+=========================== app/src/main/java/com/example/test_atv/viewmodel/DashPlayerViewModel.kt ===========================
+package com.example.test_atv.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.source.MediaSource
+import com.example.test_atv.model.NetworkRequest
+import com.example.test_atv.network.NetworkRequestInterceptor
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import java.util.Date
+import java.util.concurrent.TimeUnit
+
+@androidx.annotation.OptIn(UnstableApi::class)
+class DashPlayerViewModel : ViewModel() {
+
+    private val _networkRequests = MutableStateFlow<List<NetworkRequest>>(emptyList())
+    val networkRequests: StateFlow<List<NetworkRequest>> = _networkRequests.asStateFlow()
+
+    private var player: ExoPlayer? = null
+    private val okHttpClient: OkHttpClient
+
+    init {
+        // สร้าง OkHttpClient พร้อมกับ interceptor สำหรับบันทึก network requests
+        val networkInterceptor = NetworkRequestInterceptor { request ->
+            _networkRequests.value = _networkRequests.value + request
+        }
+
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        }
+
+        okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .addNetworkInterceptor(networkInterceptor)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
+    fun initializePlayer(context: Context, dashUrl: String) {
+        // สร้าง ExoPlayer instance
+        val newPlayer = ExoPlayer.Builder(context).build()
+        player = newPlayer
+
+        // สร้าง MediaSource สำหรับ DASH streaming
+        val mediaSource = createDashMediaSource(dashUrl)
+
+        // กำหนด MediaSource ให้กับ player
+        newPlayer.setMediaSource(mediaSource)
+
+        // เตรียม player และเริ่มเล่น
+        newPlayer.prepare()
+        newPlayer.playWhenReady = true
+    }
+    @UnstableApi
+    fun getPlayer(): ExoPlayer? {
+        return player
+    }
+
+    @UnstableApi
+    private fun createDashMediaSource(dashUrl: String): MediaSource {
+        // สร้าง OkHttpDataSource.Factory ที่ใช้ OkHttpClient ที่เราตั้งค่าไว้
+        val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+
+        // สร้าง MediaItem จาก DASH URL
+        val mediaItem = MediaItem.Builder()
+            .setUri(dashUrl)
+            .build()
+
+        // สร้างและส่งคืน DashMediaSource
+        return DashMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(mediaItem)
+    }
+
+    fun releasePlayer() {
+        player?.release()
+        player = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        releasePlayer()
+    }
+
+    fun clearNetworkRequests() {
+        _networkRequests.value = emptyList()
+    }
+
+}
+
+
+=========================== app/src/main/java/com/example/test_atv/ui/theme/Color.kt ===========================
+package com.example.test_atv.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val Purple80 = Color(0xFFD0BCFF)
+val PurpleGrey80 = Color(0xFFCCC2DC)
+val Pink80 = Color(0xFFEFB8C8)
+
+val Purple40 = Color(0xFF6650a4)
+val PurpleGrey40 = Color(0xFF625b71)
+val Pink40 = Color(0xFF7D5260)
+
+
+=========================== app/src/main/java/com/example/test_atv/ui/theme/Theme.kt ===========================
+package com.example.test_atv.ui.theme
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.darkColorScheme
+import androidx.tv.material3.lightColorScheme
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun Test_atvTheme(
+    isInDarkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit,
+) {
+    val colorScheme = if (isInDarkTheme) {
+        darkColorScheme(
+            primary = Purple80,
+            secondary = PurpleGrey80,
+            tertiary = Pink80
+        )
+    } else {
+        lightColorScheme(
+            primary = Purple40,
+            secondary = PurpleGrey40,
+            tertiary = Pink40
+        )
+    }
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
+
+
+=========================== app/src/main/java/com/example/test_atv/ui/theme/Type.kt ===========================
+package com.example.test_atv.ui.theme
+
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Typography
+
+// Set of Material typography styles to start with
+@OptIn(ExperimentalTvMaterial3Api::class)
+val Typography = Typography(
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    )
+    /* Other default text styles to override
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+    */
+)
+
+
+=========================== app/src/main/java/com/example/test_atv/MainActivity.kt ===========================
+package com.example.test_atv
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
+import com.example.test_atv.model.NetworkRequest
+import com.example.test_atv.ui.theme.Test_atvTheme
+import com.example.test_atv.viewmodel.DashPlayerViewModel
+import java.text.SimpleDateFormat
+import java.util.Locale
+
+@UnstableApi
+class MainActivity : ComponentActivity() {
+    private val dashUrl = "https://mani-manip.vdosol-play.com/live/localdisk/V0003_STG/DNF/V0003_STG.mpd"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            Test_atvTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    DashPlayerScreen(dashUrl)
+                }
+            }
+        }
+    }
+}
+
+@UnstableApi
+@Composable
+fun DashPlayerScreen(dashUrl: String) {
+    val viewModel: DashPlayerViewModel = viewModel()
+    val context = LocalContext.current
+    val networkRequests by viewModel.networkRequests.collectAsState()
+
+    // ขนาดสัดส่วนของพื้นที่แสดงผลวิดีโอกับพื้นที่ debug
+    val videoWeightFraction = 0.5f
+
+    // Effect สำหรับการเริ่มใช้งานและปิด Player
+    DisposableEffect(Unit) {
+        viewModel.initializePlayer(context, dashUrl)
+        onDispose {
+            viewModel.releasePlayer()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // หน้าต่างเล่นวิดีโอ (ครึ่งบน)
+        Box(
+            modifier = Modifier
+                .weight(videoWeightFraction)
+                .fillMaxWidth()
+        ) {
+            // แสดง PlayerView
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        useController = true
+                        player = viewModel.getPlayer()
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { playerView ->
+                    playerView.player = viewModel.getPlayer()
+                }
+            )
+
+            // แสดงสถานะการโหลด
+            if (networkRequests.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xBB000000)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
+        }
+
+        // หน้าต่าง debug (ครึ่งล่าง)
+        Column(
+            modifier = Modifier
+                .weight(1 - videoWeightFraction)
+                .fillMaxWidth()
+                .background(Color(0xFF101010))
+                .padding(8.dp)
+        ) {
+            // ส่วนหัวของหน้าต่าง debug
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Network Requests",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Button(
+                    onClick = { viewModel.clearNetworkRequests() }
+                ) {
+                    Text("Clear")
+                }
+            }
+
+            // แสดงรายการ network requests
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(networkRequests.reversed()) { request ->
+                    NetworkRequestItem(request)
+                    HorizontalDivider(color = Color.DarkGray, thickness = 1.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NetworkRequestItem(request: NetworkRequest) {
+    val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        // แสดง URL และ HTTP method
+        Text(
+            text = "${request.method} ${request.url}",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium
+        )
+
+        // แสดงเวลาและรายละเอียดอื่นๆ
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = dateFormat.format(request.timestamp),
+                color = Color.LightGray,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = request.statusCode?.toString() ?: "Pending",
+                color = when {
+                    request.statusCode == null -> Color.Yellow
+                    request.statusCode in 200..299 -> Color.Green
+                    else -> Color.Red
+                },
+                fontSize = 12.sp
+            )
+        }
+
+        // แสดงขนาดไฟล์และเวลาในการตอบกลับ
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = request.contentType ?: "Unknown type",
+                color = Color.LightGray,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = if (request.contentLength != null) {
+                    formatFileSize(request.contentLength)
+                } else {
+                    "Unknown size"
+                },
+                color = Color.LightGray,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = if (request.responseTime != null) {
+                    "${request.responseTime}ms"
+                } else {
+                    "..."
+                },
+                color = Color.LightGray,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+// ฟังก์ชันแปลงขนาดไฟล์เป็น KB, MB, GB
+fun formatFileSize(size: Long): String {
+    return when {
+        size < 1024 -> "$size B"
+        size < 1024 * 1024 -> "${size / 1024} KB"
+        size < 1024 * 1024 * 1024 -> "${size / (1024 * 1024)} MB"
+        else -> "${size / (1024 * 1024 * 1024)} GB"
+    }
+}
+
+
+=========================== app/src/main/java/com/example/test_atv/network/NetworkRequestInterceptor.kt ===========================
+package com.example.test_atv.network
+
+import com.example.test_atv.model.NetworkRequest
+import okhttp3.Interceptor
+import okhttp3.Response
+import java.util.Date
+
+/**
+ * Interceptor สำหรับดักจับและบันทึกข้อมูล network requests
+ */
+class NetworkRequestInterceptor(
+    private val onRequestCaptured: (NetworkRequest) -> Unit
+) : Interceptor {
+
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val startTime = System.currentTimeMillis()
+
+        // สร้าง NetworkRequest object สำหรับ request
+        val networkRequest = NetworkRequest(
+            url = request.url.toString(),
+            method = request.method,
+            timestamp = Date(startTime)
+        )
+
+        // เรียก proceed เพื่อดำเนินการส่ง request
+        val response = chain.proceed(request)
+        val endTime = System.currentTimeMillis()
+
+        // อัปเดตข้อมูลเพิ่มเติมจาก response
+        val updatedRequest = networkRequest.copy(
+            contentType = response.header("Content-Type"),
+            contentLength = response.header("Content-Length")?.toLongOrNull(),
+            statusCode = response.code,
+            responseTime = endTime - startTime
+        )
+
+        // เรียก callback เพื่อส่ง NetworkRequest ที่อัปเดตแล้ว
+        onRequestCaptured(updatedRequest)
+
+        return response
+    }
+}
+
+
+=========================== app/src/main/java/com/example/test_atv/model/NetworkRequestModel.kt ===========================
+package com.example.test_atv.model
+
+import java.util.Date
+
+/**
+ * เก็บข้อมูลเกี่ยวกับ network request ที่เกิดขึ้นในระหว่างการสตรีม
+ */
+data class NetworkRequest(
+    val url: String,
+    val method: String,
+    val timestamp: Date = Date(),
+    val contentType: String? = null,
+    val contentLength: Long? = null,
+    val statusCode: Int? = null,
+    val responseTime: Long? = null
+)
+
+
+=========================== build.gradle.kts ===========================
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+}
+
+
+
+=========================== settings.gradle.kts ===========================
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "test_atv"
+include(":app")
+
+
+
+=========================== gradle.properties ===========================
+# Project-wide Gradle settings.
+# IDE (e.g. Android Studio) users:
+# Gradle settings configured through the IDE *will override*
+# any settings specified in this file.
+# For more details on how to configure your build environment visit
+# http://www.gradle.org/docs/current/userguide/build_environment.html
+# Specifies the JVM arguments used for the daemon process.
+# The setting is particularly useful for tweaking memory settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+# When configured, Gradle will run in incubating parallel mode.
+# This option should only be used with decoupled projects. For more details, visit
+# https://developer.android.com/r/tools/gradle-multi-project-decoupled-projects
+# org.gradle.parallel=true
+# AndroidX package structure to make it clearer which packages are bundled with the
+# Android operating system, and which are packaged with your app's APK
+# https://developer.android.com/topic/libraries/support-library/androidx-rn
+android.useAndroidX=true
+# Kotlin code style for this project: "official" or "obsolete":
+kotlin.code.style=official
+# Enables namespacing of each library's R class so that its R class includes only the
+# resources declared in the library itself and none from the library's dependencies,
+# thereby reducing the size of the R class for that library
+android.nonTransitiveRClass=true
+
+
+=========================== app/build.gradle.kts ===========================
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "com.example.test_atv"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.example.test_atv"
+        minSdk = 25
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+    buildFeatures {
+        compose = true
+    }
+}
+
+dependencies {
+
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.tv.foundation)
+    implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
+
+
+    // ExoPlayer (ใช้ libs ที่เพิ่มใหม่)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.dash)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.material3)
+    implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("androidx.compose.ui:ui:1.5.4")
+    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+
+    // HTTP client สำหรับดักจับ network traffic
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+}
+
+
+=========================== app/proguard-rules.pro ===========================
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
+
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile
+
+
