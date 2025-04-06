@@ -12,7 +12,7 @@
 # Kotlin build folder
 *.kotlin_module
 
-# Gradle files
+# Gradle files test
 .gradle/
 build/
 */build/
