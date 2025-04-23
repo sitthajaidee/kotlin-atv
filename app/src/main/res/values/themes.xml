@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.Albireo01" parent="@style/Theme.Leanback" />
+</resources>
